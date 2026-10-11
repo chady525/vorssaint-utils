@@ -2182,6 +2182,16 @@ enum NotchAgentTests {
                         && NotchAgentSupport.restingLimit(resting, focus: .mostUsed, now: now)
                             .map { $0.provider == .claude && $0.window.usedPercent == 95 } == true,
                      "the resting island falls back to the most used window only when no account reports the chosen one")
+        let sessionWindow = AgentLimitWindow(id: "s", kind: .session, minutes: 300, scope: nil, usedPercent: 42,
+                                             resetsAt: now.addingTimeInterval(3_600))
+        let metered = snapshot([session(.claude, startedAgo: 754)],
+                               limits: [.claude: AgentLimits(provider: .claude, windows: [window, sessionWindow],
+                                                             observedAt: now, source: .claudeApp)])
+        let meter = NotchAgentSupport.stripMeter(metered, now: now)
+        suite.expect(meter?.provider == .claude && meter?.session == 0.42 && meter?.weekly == 0.79
+                        && NotchAgentSupport.stripMeter(short, now: now) == nil
+                        && NotchAgentSupport.stripMeter(metered, now: now.addingTimeInterval(3_601))?.session == 0,
+                     "the strip meter shows session and weekly use, hides without limits, and empties a renewed session")
         let expiredAt = now.addingTimeInterval(86_401)
         suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: expiredAt)
                         == AgentFormat.percent(1),

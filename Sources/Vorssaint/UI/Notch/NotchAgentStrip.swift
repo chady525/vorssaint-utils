@@ -46,6 +46,11 @@ struct NotchAgentStrip: View {
                     if geometry.compactActivityWingWidth >= 28 {
                         ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
                     }
+                    if let meter = NotchAgentSupport.stripMeter(usage.snapshot, now: Date()),
+                       geometry.compactActivityWingWidth >= 28 + NotchAgentSupport.stripMeterWidth {
+                        NotchAgentStripMeter(provider: meter.provider, session: meter.session, weekly: meter.weekly)
+                            .padding(.leading, NotchAgentSupport.stripMeterSpacing - 1)
+                    }
                 }
                 .padding(.leading, iconInset)
                 .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
@@ -97,6 +102,37 @@ struct NotchAgentStrip: View {
         return NotchAgentSupport.stripReading(snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                               display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
                                               focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
+    }
+}
+
+/// Two slim bars beside the working marks: the five-hour session, bright,
+/// over the week, dim. Each warms the way the limit cards do as it fills.
+struct NotchAgentStripMeter: View {
+    let provider: AgentProvider
+    let session: Double?
+    let weekly: Double?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            bar(session, height: 3, opacity: 1)
+            bar(weekly, height: 2, opacity: 0.55)
+        }
+        .frame(width: NotchAgentSupport.stripMeterWidth)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private func bar(_ used: Double?, height: CGFloat, opacity: Double) -> some View {
+        let tint = agentLimitTint(provider, usedFraction: used ?? 0)
+        Capsule()
+            .fill(Color.white.opacity(0.14))
+            .overlay(alignment: .leading) {
+                Capsule()
+                    .fill(tint.opacity(opacity))
+                    .frame(width: max((used ?? 0) > 0 ? height : 0, NotchAgentSupport.stripMeterWidth * (used ?? 0)))
+            }
+            .frame(height: height)
+            .opacity(used == nil ? 0 : 1)
+            .animation(.easeInOut(duration: 0.4), value: used)
     }
 }
 

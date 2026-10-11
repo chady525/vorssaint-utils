@@ -220,6 +220,25 @@ enum NotchAgentSupport {
         }
     }
 
+    /// Width of the session and weekly bars beside the working marks.
+    static let stripMeterWidth: CGFloat = 20
+    static let stripMeterSpacing: CGFloat = 4
+
+    /// The first working agent's whole-account session and weekly allowances,
+    /// as spent fractions, or nil while it reports neither.
+    static func stripMeter(_ snapshot: AgentUsageSnapshot, now: Date)
+        -> (provider: AgentProvider, session: Double?, weekly: Double?)? {
+        let live = snapshot.live
+        guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
+              let windows = snapshot.limits[provider]?.windows.map({ AgentLimitSupport.current($0, at: now) })
+        else { return nil }
+        func used(_ kind: AgentLimitWindow.Kind) -> Double? {
+            windows.first { $0.kind == kind && $0.scope == nil }?.usedFraction
+        }
+        let session = used(.session), weekly = used(.weekly)
+        return session == nil && weekly == nil ? nil : (provider, session, weekly)
+    }
+
     /// Every digit takes the same width, so a reading's shape, not its value,
     /// sets the strip's width: "12:34" and "59:59" match, "1:00:00" is wider.
     static func readingShape(_ reading: String) -> String {

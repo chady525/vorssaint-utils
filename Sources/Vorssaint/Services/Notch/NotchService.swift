@@ -417,7 +417,9 @@ final class NotchService: ObservableObject {
         let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
         let mark = CGFloat(working > 1 ? 11 : 14)
         let frame = mark * 1.45 + 1
-        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
+        let meter = NotchAgentSupport.stripMeter(AgentUsageService.shared.snapshot, now: Date()) == nil ? 0
+            : NotchAgentSupport.stripMeterSpacing + NotchAgentSupport.stripMeterWidth
+        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1)) + meter
             + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
@@ -2582,9 +2584,11 @@ final class NotchService: ObservableObject {
         if modules.contains(.agents) {
             // Only what changes the island's size or strip: a turn starting or
             // ending, the first read landing, which agents have cards, and
-            // which are working, since each one's mark widens the strip.
+            // which are working, since each one's mark widens the strip, and
+            // whether the usage bars beside the marks have anything to show.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider)),
+                        NotchAgentSupport.stripMeter($0, now: Date()) != nil) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

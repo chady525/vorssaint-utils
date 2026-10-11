@@ -166,6 +166,9 @@ enum AgentLogParser {
         guard let json = object(line), json["type"] as? String == "user",
               json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true else { return [] }
         adopt(json, into: &state)
+        // A slash command like /clear may print nothing and never ask the
+        // model; one that does opens the turn with the model's first reply.
+        if texts(json).contains(where: { $0.hasPrefix("<command-name>") }) { return [] }
         state.turnOpen = true
         state.runningCommands = []
         return [.turnBegan(timestamp(json["timestamp"]) ?? now)]
@@ -225,18 +228,17 @@ enum AgentLogParser {
     /// The interruption or local command output the person's message holds,
     /// never text inside a tool result.
     private static func endsTurn(_ json: [String: Any]) -> Bool {
-        let content = (json["message"] as? [String: Any])?["content"]
-        let texts: [String]
-        if let text = content as? String {
-            texts = [text]
-        } else if let blocks = content as? [[String: Any]] {
-            texts = blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
-        } else {
-            texts = []
-        }
-        return texts.contains {
+        texts(json).contains {
             $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
         }
+    }
+
+    /// The text the person's message holds, never text inside a tool result.
+    private static func texts(_ json: [String: Any]) -> [String] {
+        let content = (json["message"] as? [String: Any])?["content"]
+        if let text = content as? String { return [text] }
+        guard let blocks = content as? [[String: Any]] else { return [] }
+        return blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
     }
 
     private static func adopt(_ json: [String: Any], into state: inout AgentLogState) {
